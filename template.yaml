@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to deploy an S3 bucket and Lambda function from a pipeline.
+
+Resources:
+  
+  # S3 Bucket
+  MyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'my-unique-bucket-name-12345'  # Make sure this is globally unique
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action: 'sts:AssumeRole'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+      Policies:
+        - PolicyName: 'LambdaS3AccessPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+
+  # Lambda Function
+  MyLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'MyLambdaFunction'
+      Handler: 'index.handler'  # Replace with your Lambda function's handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref MyS3Bucket
+        S3Key: 'lambda-function.zip'  # Make sure the function zip is uploaded to this location
+      Runtime: 'nodejs14.x'  # Or another runtime based on your Lambda function code
+      MemorySize: 128
+      Timeout: 10
+
+  # S3 Bucket Policy for Lambda to access
+  LambdaS3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref MyS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 's3:GetObject'
+            Resource:
+              - !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+            Principal:
+              AWS: !GetAtt LambdaExecutionRole.Arn
+
+Outputs:
+  BucketName:
+    Description: 'S3 Bucket Name'
+    Value: !Ref MyS3Bucket
+  LambdaFunctionName:
+    Description: 'Lambda Function Name'
+    Value: !Ref MyLambdaFunction
